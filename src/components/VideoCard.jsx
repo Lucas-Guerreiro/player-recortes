@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Download, Share2, Building2, Grid, Calendar, Clock, Check } from 'lucide-react';
-import { getDriveDownloadUrl } from '../utils/driveHelper';
+import { Play, Download, Share2, Eye, Clock, Check, Camera } from 'lucide-react';
+import { getMediaDownloadUrl } from '../utils/driveHelper';
 
 export default function VideoCard({ video, onPlayVideo }) {
   const [copied, setCopied] = useState(false);
@@ -11,21 +11,24 @@ export default function VideoCard({ video, onPlayVideo }) {
     year: 'numeric'
   });
 
-  // Função de Download sem AccessDenied
   const handleDownload = (e) => {
     e.stopPropagation();
-    const downloadUrl = getDriveDownloadUrl(video.videoUrl || video.driveFileId);
+    const downloadUrl = getMediaDownloadUrl(video.videoUrl);
     window.open(downloadUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleShare = async (e) => {
     e.stopPropagation();
-    const shareText = `⚽ Confira o replay do meu gol: "${video.title}" no ${video.complexo} (${video.quadra}) no dia ${formattedDate} às ${video.hora}!`;
+    const shareText = `⚽ Replay de Gol no ${video.complexo} (${video.quadra}) - ${formattedDate} às ${video.hora}!`;
     const shareUrl = window.location.href;
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Replay: ${video.title}`, text: shareText, url: shareUrl });
+        await navigator.share({
+          title: video.title,
+          text: shareText,
+          url: shareUrl
+        });
         return;
       } catch (err) {}
     }
@@ -36,131 +39,153 @@ export default function VideoCard({ video, onPlayVideo }) {
   };
 
   return (
-    <article className="glass-panel glass-panel-hover" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+    <div 
+      className="glass-panel video-card"
+      onClick={() => onPlayVideo(video)}
+      style={{
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        position: 'relative',
+        transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease'
+      }}
+    >
       
-      {/* Thumbnail & Hover Overlay */}
-      <div 
-        onClick={() => onPlayVideo(video)}
-        style={{ position: 'relative', width: '100%', paddingTop: '56.25%', background: '#0a0f1d', cursor: 'pointer', overflow: 'hidden' }}
-      >
+      {/* Thumbnail + Overlays */}
+      <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', backgroundColor: '#0d131f' }}>
         <img
           src={video.thumbnail}
           alt={video.title}
           style={{
             position: 'absolute',
-            inset: 0,
+            top: 0,
+            left: 0,
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
-            transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            objectFit: 'cover'
           }}
-          className="video-thumb-img"
+          loading="lazy"
         />
 
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(to top, rgba(7, 9, 14, 0.85) 0%, transparent 60%)'
-        }}></div>
+        {/* Play Button Glow Overlay */}
+        <div 
+          className="play-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(7, 9, 14, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'opacity 0.2s ease'
+          }}
+        >
+          <div style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #00ff87 0%, #00b8ff 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 25px rgba(0, 255, 135, 0.6)'
+          }}>
+            <Play size={24} color="#07090e" fill="#07090e" style={{ marginLeft: '3px' }} />
+          </div>
+        </div>
 
+        {/* Badge Hora Exacta */}
         <div style={{
           position: 'absolute',
-          bottom: '10px',
-          right: '10px',
-          background: 'rgba(0, 0, 0, 0.75)',
+          bottom: '8px',
+          right: '8px',
+          background: 'rgba(7, 9, 14, 0.85)',
           backdropFilter: 'blur(4px)',
           color: '#fff',
           padding: '3px 8px',
           borderRadius: '6px',
           fontSize: '0.75rem',
-          fontWeight: 700
-        }}>
-          {video.duracao}
-        </div>
-
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          left: '10px',
-          background: 'rgba(0, 255, 135, 0.9)',
-          color: '#07090e',
-          padding: '3px 8px',
-          borderRadius: '6px',
-          fontSize: '0.7rem',
-          fontWeight: 800,
-          textTransform: 'uppercase'
-        }}>
-          {video.tipoGol || 'Replay'}
-        </div>
-
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '54px',
-          height: '54px',
-          borderRadius: '50%',
-          background: 'rgba(0, 255, 135, 0.9)',
-          boxShadow: '0 0 25px rgba(0, 255, 135, 0.6)',
+          fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          color: '#07090e'
+          gap: '4px'
         }}>
-          <Play size={26} style={{ marginLeft: '4px' }} fill="#07090e" />
+          <Clock size={12} color="var(--accent-green)" />
+          {video.hora}
         </div>
-      </div>
 
-      {/* Content */}
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
-        
-        <div>
-          <h3 
-            onClick={() => onPlayVideo(video)}
-            style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '8px', cursor: 'pointer', lineHeight: 1.3 }}
-          >
-            {video.title}
-          </h3>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-            <span className="badge badge-complexo">{video.complexo}</span>
-            <span className="badge badge-quadra">{video.quadra}</span>
-            <span className="badge badge-data">{formattedDate}</span>
-            <span className="badge badge-hora">{video.hora}</span>
+        {/* Badge Câmera (Ugreen / Anker) */}
+        {video.camera && (
+          <div style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            background: 'rgba(0, 184, 255, 0.9)',
+            color: '#07090e',
+            padding: '3px 8px',
+            borderRadius: '6px',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <Camera size={12} />
+            Câmera {video.camera}
           </div>
+        )}
+      </div>
+
+      {/* Conteúdo do Card */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        
+        {/* Badges de Metadados: Complexo, Quadra e Data */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+          <span className="badge badge-complexo">{video.complexo}</span>
+          <span className="badge badge-quadra">{video.quadra}</span>
+          <span className="badge badge-data">{formattedDate}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid var(--border-glass)', gap: '8px' }}>
-          <button
-            onClick={() => onPlayVideo(video)}
-            className="btn-primary"
-            style={{ flex: 1, padding: '8px 12px', fontSize: '0.8rem' }}
-          >
-            <Play size={14} fill="#07090e" />
-            Assistir Replay
-          </button>
+        {/* Título do Vídeo */}
+        <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.35, marginBottom: '12px' }}>
+          {video.title}
+        </h3>
 
-          <button
-            onClick={handleDownload}
-            className="btn-icon"
-            title="Baixar Vídeo MP4"
-          >
-            <Download size={16} />
-          </button>
+        {/* Footer do Card com Ações */}
+        <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border-glass)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+            <Eye size={14} color="var(--accent-green)" />
+            <span>{video.visualizacoes || 1} visualizações</span>
+          </div>
 
-          <button
-            onClick={handleShare}
-            className="btn-icon"
-            title={copied ? "Link Copiado!" : "Compartilhar"}
-            style={copied ? { borderColor: 'var(--accent-green)', color: 'var(--accent-green)' } : {}}
-          >
-            {copied ? <Check size={16} /> : <Share2 size={16} />}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={handleShare}
+              className="btn-icon"
+              title="Compartilhar Replay"
+              style={{ width: '32px', height: '32px', padding: 0 }}
+            >
+              {copied ? <Check size={14} color="var(--accent-green)" /> : <Share2 size={14} />}
+            </button>
+
+            <button
+              onClick={handleDownload}
+              className="btn-icon"
+              title="Baixar Vídeo MP4"
+              style={{ width: '32px', height: '32px', padding: 0, color: 'var(--accent-green)' }}
+            >
+              <Download size={14} />
+            </button>
+          </div>
+
         </div>
 
       </div>
 
-    </article>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Utilitários para Integração com Cloudflare R2
- * URL real do usuário: https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev
+ * Suporta sufixos de câmeras: gol_YYYYMMDD_HHMMSS_Ugreen.mp4, gol_YYYYMMDD_HHMMSS_Anker.mp4
  */
 
 export function extractDriveId(urlOrId) {
@@ -32,7 +32,9 @@ export const getDriveStreamUrl = getMediaStreamUrl;
 export function getDriveEmbedUrl(url) { return getMediaStreamUrl(url); }
 
 /**
- * Analisa nomenclatura do arquivo e subpastas
+ * Analisa nomenclatura incluindo sufixos de câmeras (_Ugreen, _Anker, etc):
+ * Exemplo: "gol_20260713_205351_Ugreen.mp4" -> Câmera Ugreen, 20:53:51
+ * Exemplo: "gol_20260713_205410_Anker.mp4" -> Câmera Anker, 20:54:10
  */
 export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports Arena', defaultQuadra = 'Quadra 01') {
   const cleanStr = fullPath.trim();
@@ -50,23 +52,31 @@ export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports
   }
 
   const baseName = cleanStr.split('/').pop().replace(/\.[^/.]+$/, "");
-  const golMatch = baseName.match(/gol[_-]?(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})?/i);
+
+  // RegEx para extrair Data, Hora e Câmera (ex: _Ugreen ou _Anker)
+  const golMatch = baseName.match(/gol[_-]?(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})?(?:[_-]?([a-zA-Z0-9]+))?/i);
 
   let data = '2026-07-13';
   let horaExata = '20:53:52';
   let horaBloco = '20h';
+  let camera = '';
 
   if (golMatch) {
-    const [_, year, month, day, hour, minute, second] = golMatch;
+    const [_, year, month, day, hour, minute, second, camSuffix] = golMatch;
     data = `${year}-${month}-${day}`;
     const secStr = second ? `:${second}` : ':00';
     horaExata = `${hour}:${minute}${secStr}`;
     const hourNum = parseInt(hour, 10);
     horaBloco = `${hourNum}h`;
+
+    if (camSuffix && !/^\d+$/.test(camSuffix)) {
+      camera = camSuffix;
+    }
   }
 
   const formattedDate = data.split('-').reverse().join('/');
-  const title = `Replay de Gol - ${formattedDate} às ${horaExata}`;
+  const camText = camera ? ` (Câmera ${camera})` : '';
+  const title = `Replay de Gol - ${formattedDate} às ${horaExata}${camText}`;
 
   return {
     title,
@@ -75,12 +85,13 @@ export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports
     data,
     horaExata,
     horaBloco,
+    camera,
     originalFilename: baseName
   };
 }
 
 /**
- * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2
+ * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2 COM DETECÇÃO DAS CÂMERAS UGREEN / ANKER
  */
 export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
   const domainToUse = r2Domain || 'https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev';
@@ -114,6 +125,7 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     return fileKeys.map((key, i) => {
       const meta = parseFilenameMetadata(key, defaultBatch.complexo, defaultBatch.quadra);
       const rawUrl = key.startsWith('http') ? key : `${cleanDomain}/${key}`;
+      const cameraTag = meta.camera ? `Câmera ${meta.camera}` : 'HD Stream';
 
       return {
         id: `r2-real-${Date.now()}-${i}`,
@@ -124,13 +136,14 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
         data: meta.data,
         hora: meta.horaExata,
         horaBloco: meta.horaBloco,
+        camera: meta.camera,
         duracao: '00:15',
         thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
         videoUrl: encodeURI(decodeURI(rawUrl)),
         filename: key,
         driveFileId: '',
-        tipoGol: 'Stream R2 HD',
-        tags: [meta.complexo, meta.quadra, meta.horaBloco],
+        tipoGol: cameraTag,
+        tags: [meta.complexo, meta.quadra, meta.horaBloco, meta.camera].filter(Boolean),
         favorito: true,
         visualizacoes: 1
       };
@@ -138,17 +151,15 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
   }
 
   const sampleKeys = [
-    'gol_20260713_205352.mp4',
-    'gol_20260713_205410.mp4',
-    'gol_20260713_211312.mp4',
-    'gol_20260713_211355.mp4',
-    'gol_20260713_211845.mp4',
-    'gol_20260713_212430.mp4',
-    'gol_20260713_055900.mp4'
+    'gol_20260713_205351_Ugreen.mp4',
+    'gol_20260713_205410_Anker.mp4',
+    'gol_20260713_211312_Ugreen.mp4',
+    'gol_20260713_211845_Anker.mp4',
+    'gol_20260713_055900_Ugreen.mp4'
   ];
 
   return sampleKeys.map((filename, i) => {
-    const meta = parseFilenameMetadata(filename, defaultBatch.complexo || 'Amazon Sports Arena', i === 6 ? 'Quadra 02' : defaultBatch.quadra || 'Quadra 01');
+    const meta = parseFilenameMetadata(filename, defaultBatch.complexo || 'Amazon Sports Arena', i === 4 ? 'Quadra 02' : defaultBatch.quadra || 'Quadra 01');
     
     let relativePath = filename;
     if (prefix) {
@@ -156,6 +167,8 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     }
 
     const rawUrl = `${cleanDomain}/${relativePath}`;
+    const cameraTag = meta.camera ? `Câmera ${meta.camera}` : 'HD Stream';
+
     return {
       id: `r2-user-${Date.now()}-${i}`,
       title: meta.title,
@@ -165,13 +178,14 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
       data: meta.data,
       hora: meta.horaExata,
       horaBloco: meta.horaBloco,
+      camera: meta.camera,
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
       videoUrl: encodeURI(decodeURI(rawUrl)),
       filename: relativePath,
       driveFileId: '',
-      tipoGol: 'Stream R2 HD',
-      tags: [meta.complexo, meta.quadra, meta.horaBloco],
+      tipoGol: cameraTag,
+      tags: [meta.complexo, meta.quadra, meta.horaBloco, meta.camera].filter(Boolean),
       favorito: true,
       visualizacoes: 1
     };
@@ -194,6 +208,8 @@ export function parsePastedR2Links(textBlock, defaultBatch = {}) {
       videoUrl = `${cleanDomain}/${line}`;
     }
 
+    const cameraTag = metadata.camera ? `Câmera ${metadata.camera}` : 'Replay R2';
+
     const videoObj = {
       id: `r2-gol-${Date.now()}-${i}`,
       title: metadata.title,
@@ -203,13 +219,14 @@ export function parsePastedR2Links(textBlock, defaultBatch = {}) {
       data: metadata.data,
       hora: metadata.horaExata,
       horaBloco: metadata.horaBloco,
+      camera: metadata.camera,
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
       videoUrl: encodeURI(decodeURI(videoUrl)),
       filename: line,
       driveFileId: '',
-      tipoGol: 'Replay Cloudflare R2',
-      tags: [metadata.complexo, metadata.quadra, metadata.horaBloco],
+      tipoGol: cameraTag,
+      tags: [metadata.complexo, metadata.quadra, metadata.horaBloco, metadata.camera].filter(Boolean),
       favorito: true,
       visualizacoes: 1
     };
@@ -235,7 +252,7 @@ export function saveR2FolderPath(folderPath) {
 }
 
 export function getSavedR2FolderPath() {
-  try { return localStorage.getItem('replay_gols_r2_folder_path') || ''; } catch (e) { return ''; }
+  try { return localStorage.getItem('replay_gols_r2_folder_path') || 'Amazon Sports Arena/Quadra 01'; } catch (e) { return 'Amazon Sports Arena/Quadra 01'; }
 }
 
 export function saveDriveFolder(folderId) {}
