@@ -1,6 +1,6 @@
 /**
  * Utilitários para Integração com Cloudflare R2
- * Suporta subpastas personalizadas: Ex: Replay de Gols/Amazon Sports Arena/Quadra 01
+ * URL real do usuário: https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev
  */
 
 export function extractDriveId(urlOrId) {
@@ -80,12 +80,11 @@ export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports
 }
 
 /**
- * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2 COM SUPORTE A SUBPASTAS PERSONALIZADAS
+ * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2
  */
 export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
-  if (!r2Domain) throw new Error('Por favor, informe a URL do seu bucket Cloudflare R2.');
-  
-  const cleanDomain = r2Domain.trim().replace(/\/$/, '');
+  const domainToUse = r2Domain || 'https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev';
+  const cleanDomain = domainToUse.trim().replace(/\/$/, '');
   const prefix = defaultBatch.folderPath ? defaultBatch.folderPath.trim().replace(/^\//, '').replace(/\/$/, '') : '';
   const listUrl = prefix ? `${cleanDomain}/?list-type=2&prefix=${encodeURIComponent(prefix)}` : `${cleanDomain}/?list-type=2`;
 
@@ -138,7 +137,6 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     });
   }
 
-  // Se não foi encontrada a listagem via S3 XML, constrói as URLs respeitando a subpasta configurada
   const sampleKeys = [
     'gol_20260713_205352.mp4',
     'gol_20260713_205410.mp4',
@@ -152,7 +150,6 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
   return sampleKeys.map((filename, i) => {
     const meta = parseFilenameMetadata(filename, defaultBatch.complexo || 'Amazon Sports Arena', i === 6 ? 'Quadra 02' : defaultBatch.quadra || 'Quadra 01');
     
-    // Constrói o caminho com a subpasta configurada pelo usuário no R2
     let relativePath = filename;
     if (prefix) {
       relativePath = `${prefix}/${filename}`;
@@ -230,7 +227,7 @@ export function saveR2Domain(domain) {
 }
 
 export function getSavedR2Domain() {
-  try { return localStorage.getItem('replay_gols_r2_domain') || ''; } catch (e) { return ''; }
+  try { return localStorage.getItem('replay_gols_r2_domain') || 'https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev'; } catch (e) { return 'https://pub-8a55216f0c144ba7b4851614e6728ae2.r2.dev'; }
 }
 
 export function saveR2FolderPath(folderPath) {
