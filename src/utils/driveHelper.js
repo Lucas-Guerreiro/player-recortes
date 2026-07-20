@@ -1,6 +1,6 @@
 /**
- * Utilitários para Integração e Varredura do Cloudflare R2
- * Suporta codificação de caminhos com espaços (ex: Amazon Sports Arena/Quadra 01/gol_...)
+ * Utilitários para Integração com Cloudflare R2
+ * Suporta subpastas personalizadas: Ex: Replay de Gols/Amazon Sports Arena/Quadra 01
  */
 
 export function extractDriveId(urlOrId) {
@@ -12,16 +12,12 @@ export function extractDriveId(urlOrId) {
   return trimmed;
 }
 
-export function isRealDriveId() {
-  return false;
-}
+export function isRealDriveId() { return false; }
 
-// Codifica URLs com segurança para suportar caminhos com espaços ou caracteres especiais
 export function getMediaStreamUrl(fileUrlOrId) {
   if (!fileUrlOrId) return '';
   const trimmed = fileUrlOrId.trim();
   if (trimmed.startsWith('http')) {
-    // Codifica caracteres especiais como espaços (%20) mantendo a estrutura da URL
     return encodeURI(decodeURI(trimmed));
   }
   return trimmed;
@@ -33,13 +29,10 @@ export function getMediaDownloadUrl(fileUrlOrId) {
 
 export const getDriveDownloadUrl = getMediaDownloadUrl;
 export const getDriveStreamUrl = getMediaStreamUrl;
-export function getDriveEmbedUrl(url) {
-  return getMediaStreamUrl(url);
-}
+export function getDriveEmbedUrl(url) { return getMediaStreamUrl(url); }
 
 /**
- * Analisa nomenclatura do arquivo e subpastas:
- * Exemplo: "Amazon Sports Arena/Quadra 01/gol_20260713_205410.mp4"
+ * Analisa nomenclatura do arquivo e subpastas
  */
 export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports Arena', defaultQuadra = 'Quadra 01') {
   const cleanStr = fullPath.trim();
@@ -87,13 +80,14 @@ export function parseFilenameMetadata(fullPath, defaultComplexo = 'Amazon Sports
 }
 
 /**
- * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2 COM COMPATIBILIDADE TOTAL DE CAMINHOS
+ * BUSCA AUTOMÁTICA DE ARQUIVOS NO CLOUDFLARE R2 COM SUPORTE A SUBPASTAS PERSONALIZADAS
  */
 export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
   if (!r2Domain) throw new Error('Por favor, informe a URL do seu bucket Cloudflare R2.');
   
   const cleanDomain = r2Domain.trim().replace(/\/$/, '');
-  const listUrl = `${cleanDomain}/?list-type=2`;
+  const prefix = defaultBatch.folderPath ? defaultBatch.folderPath.trim().replace(/^\//, '').replace(/\/$/, '') : '';
+  const listUrl = prefix ? `${cleanDomain}/?list-type=2&prefix=${encodeURIComponent(prefix)}` : `${cleanDomain}/?list-type=2`;
 
   let fileKeys = [];
 
@@ -121,7 +115,6 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     return fileKeys.map((key, i) => {
       const meta = parseFilenameMetadata(key, defaultBatch.complexo, defaultBatch.quadra);
       const rawUrl = key.startsWith('http') ? key : `${cleanDomain}/${key}`;
-      const encodedUrl = encodeURI(decodeURI(rawUrl));
 
       return {
         id: `r2-real-${Date.now()}-${i}`,
@@ -134,7 +127,7 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
         horaBloco: meta.horaBloco,
         duracao: '00:15',
         thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
-        videoUrl: encodedUrl,
+        videoUrl: encodeURI(decodeURI(rawUrl)),
         filename: key,
         driveFileId: '',
         tipoGol: 'Stream R2 HD',
@@ -145,7 +138,7 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     });
   }
 
-  // Se não retornou via S3 XML, constrói a lista com os nomes padrão codificados sob a URL do R2
+  // Se não foi encontrada a listagem via S3 XML, constrói as URLs respeitando a subpasta configurada
   const sampleKeys = [
     'gol_20260713_205352.mp4',
     'gol_20260713_205410.mp4',
@@ -156,9 +149,16 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
     'gol_20260713_055900.mp4'
   ];
 
-  return sampleKeys.map((key, i) => {
-    const meta = parseFilenameMetadata(key, defaultBatch.complexo || 'Amazon Sports Arena', i === 6 ? 'Quadra 02' : defaultBatch.quadra || 'Quadra 01');
-    const rawUrl = `${cleanDomain}/${key}`;
+  return sampleKeys.map((filename, i) => {
+    const meta = parseFilenameMetadata(filename, defaultBatch.complexo || 'Amazon Sports Arena', i === 6 ? 'Quadra 02' : defaultBatch.quadra || 'Quadra 01');
+    
+    // Constrói o caminho com a subpasta configurada pelo usuário no R2
+    let relativePath = filename;
+    if (prefix) {
+      relativePath = `${prefix}/${filename}`;
+    }
+
+    const rawUrl = `${cleanDomain}/${relativePath}`;
     return {
       id: `r2-user-${Date.now()}-${i}`,
       title: meta.title,
@@ -171,7 +171,7 @@ export async function fetchR2BucketFiles(r2Domain, defaultBatch = {}) {
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
       videoUrl: encodeURI(decodeURI(rawUrl)),
-      filename: key,
+      filename: relativePath,
       driveFileId: '',
       tipoGol: 'Stream R2 HD',
       tags: [meta.complexo, meta.quadra, meta.horaBloco],
@@ -224,7 +224,22 @@ export function parsePastedR2Links(textBlock, defaultBatch = {}) {
 }
 
 export async function syncGoogleDriveFolder() { return []; }
-export function saveR2Domain(domain) { try { localStorage.setItem('replay_gols_r2_domain', domain); } catch (e) {} }
-export function getSavedR2Domain() { try { return localStorage.getItem('replay_gols_r2_domain') || ''; } catch (e) { return ''; } }
+
+export function saveR2Domain(domain) {
+  try { localStorage.setItem('replay_gols_r2_domain', domain); } catch (e) {}
+}
+
+export function getSavedR2Domain() {
+  try { return localStorage.getItem('replay_gols_r2_domain') || ''; } catch (e) { return ''; }
+}
+
+export function saveR2FolderPath(folderPath) {
+  try { localStorage.setItem('replay_gols_r2_folder_path', folderPath); } catch (e) {}
+}
+
+export function getSavedR2FolderPath() {
+  try { return localStorage.getItem('replay_gols_r2_folder_path') || ''; } catch (e) { return ''; }
+}
+
 export function saveDriveFolder(folderId) {}
 export function getSavedDriveFolder() { return ''; }

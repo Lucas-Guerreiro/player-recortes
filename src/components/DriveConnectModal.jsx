@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { 
   Cloud, HardDrive, X, Check, AlertCircle, Loader2, Sparkles, 
-  FolderTree, Upload, FileVideo 
+  FolderTree, Upload, FileVideo, Folder 
 } from 'lucide-react';
 import { 
   saveR2Domain, 
   getSavedR2Domain, 
+  saveR2FolderPath,
+  getSavedR2FolderPath,
   fetchR2BucketFiles, 
   parseFilenameMetadata,
   extractDriveId, 
@@ -18,9 +20,10 @@ export default function DriveConnectModal({
   onFolderConnected, 
   onAddMultipleVideos 
 }) {
-  const [activeTab, setActiveTab] = useState('r2'); // 'r2' | 'local' | 'drive'
+  const [activeTab, setActiveTab] = useState('r2');
   const [r2Domain, setR2Domain] = useState(getSavedR2Domain());
-  
+  const [r2FolderPath, setR2FolderPath] = useState(getSavedR2FolderPath());
+
   const [batchComplexo, setBatchComplexo] = useState('Amazon Sports Arena');
   const [batchQuadra, setBatchQuadra] = useState('Quadra 01');
 
@@ -29,7 +32,7 @@ export default function DriveConnectModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // 1. VARREDURA 100% AUTOMÁTICA DO CLOUDFLARE R2 (Nenhum nome digitado pelo usuário)
+  // Sincronização e ajuste de subpasta do R2
   const handleR2AutoSync = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -42,36 +45,36 @@ export default function DriveConnectModal({
 
     setLoading(true);
     saveR2Domain(r2Domain);
+    saveR2FolderPath(r2FolderPath);
 
     try {
-      // Varre o bucket R2 e descobre automaticamente todos os vídeos e metadados
       const detectedVideos = await fetchR2BucketFiles(r2Domain, {
         complexo: batchComplexo,
-        quadra: batchQuadra
+        quadra: batchQuadra,
+        folderPath: r2FolderPath
       });
 
       if (!detectedVideos || detectedVideos.length === 0) {
-        setErrorMsg('Nenhum vídeo foi encontrado dentro deste bucket Cloudflare R2.');
+        setErrorMsg('Nenhum vídeo foi encontrado neste caminho do Cloudflare R2.');
         setLoading(false);
         return;
       }
 
       onAddMultipleVideos(detectedVideos);
-      setSuccessMsg(`🚀 Sucesso! ${detectedVideos.length} vídeos foram detectados automaticamente no Cloudflare R2 e os filtros foram atualizados!`);
+      setSuccessMsg(`🚀 Sucesso! ${detectedVideos.length} vídeos foram sincronizados do seu R2 com caminho atualizado!`);
 
       setTimeout(() => {
         onClose();
       }, 1500);
 
     } catch (err) {
-      console.error('Erro na varredura do R2:', err);
-      setErrorMsg(err.message || 'Erro ao conectar ao bucket Cloudflare R2.');
+      console.error('Erro R2:', err);
+      setErrorMsg(err.message || 'Erro ao conectar ao Cloudflare R2.');
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Upload/Carregamento de Arquivos do Computador (Local)
   const handleLocalFilesUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -105,35 +108,9 @@ export default function DriveConnectModal({
     setTimeout(() => onClose(), 1400);
   };
 
-  // 3. Sincronizar via Google Drive
-  const handleDriveSync = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    const folderId = extractDriveId(inputDriveUrl);
-    if (!folderId) {
-      setErrorMsg('Link de pasta do Google Drive inválido.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const detectedVideos = await syncGoogleDriveFolder(inputDriveUrl);
-      onAddMultipleVideos(detectedVideos);
-      setSuccessMsg(`✅ ${detectedVideos.length} vídeos sincronizados do Drive!`);
-      setTimeout(() => onClose(), 1400);
-    } catch (err) {
-      setErrorMsg(err.message || 'Erro ao sincronizar pasta do Drive.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="modal-overlay">
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', padding: '28px', position: 'relative', borderRadius: 'var(--radius-lg)' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '620px', padding: '28px', position: 'relative', borderRadius: 'var(--radius-lg)' }}>
         
         {/* Fechar */}
         <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '16px', right: '16px' }}>
@@ -155,14 +132,14 @@ export default function DriveConnectModal({
             <Cloud size={26} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Conectar Nuvem de Streaming</h2>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Ajuste de Caminho do Cloudflare R2</h2>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Detecção 100% automática dos seus replays de gols
+              Configure o link público e a estrutura de subpastas do seu bucket R2
             </p>
           </div>
         </div>
 
-        {/* Tabs: Cloudflare R2 | Upload do Computador | Google Drive */}
+        {/* Tabs */}
         <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', borderBottom: '1px solid var(--border-glass)', pb: '8px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setActiveTab('r2')}
@@ -180,7 +157,7 @@ export default function DriveConnectModal({
               gap: '6px'
             }}
           >
-            <Cloud size={16} /> Cloudflare R2 (Automático)
+            <Cloud size={16} /> Cloudflare R2 (Links & Subpastas)
           </button>
 
           <button
@@ -201,34 +178,15 @@ export default function DriveConnectModal({
           >
             <Upload size={16} /> Do Computador
           </button>
-
-          <button
-            onClick={() => setActiveTab('drive')}
-            style={{
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'drive' ? '2px solid var(--accent-cyan)' : 'none',
-              color: activeTab === 'drive' ? 'var(--accent-cyan)' : 'var(--text-muted)',
-              fontSize: '0.88rem',
-              fontWeight: 700,
-              padding: '8px 12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <HardDrive size={16} /> Google Drive
-          </button>
         </div>
 
-        {/* TAB 1: CLOUDFLARE R2 AUTOMÁTICO */}
+        {/* TAB 1: CLOUDFLARE R2 */}
         {activeTab === 'r2' && (
           <form onSubmit={handleR2AutoSync}>
             
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-green)', display: 'block', marginBottom: '8px' }}>
-                URL Pública do Cloudflare R2 / Domínio:
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--accent-green)', display: 'block', marginBottom: '6px' }}>
+                1. URL Pública do Cloudflare R2:
               </label>
               <input
                 type="text"
@@ -236,26 +194,29 @@ export default function DriveConnectModal({
                 placeholder="https://pub-a1b2c3d4e5f6789.r2.dev"
                 value={r2Domain}
                 onChange={(e) => setR2Domain(e.target.value)}
-                style={{ fontSize: '0.95rem', padding: '12px 16px' }}
+                style={{ fontSize: '0.92rem' }}
                 required
-                autoFocus
               />
             </div>
 
-            <div style={{
-              background: 'rgba(0, 255, 135, 0.05)',
-              border: '1px solid rgba(0, 255, 135, 0.2)',
-              padding: '12px 16px',
-              borderRadius: '10px',
-              marginBottom: '20px',
-              fontSize: '0.8rem',
-              color: 'var(--text-muted)',
-              lineHeight: 1.5
-            }}>
-              <div style={{ fontWeight: 800, color: 'var(--accent-green)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <FolderTree size={16} /> Detecção Automática dos Arquivos:
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--accent-cyan)', display: 'block', marginBottom: '6px' }}>
+                2. Subpasta Dentro do R2 (Deixe em branco se o vídeo estiver na raiz do R2):
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Folder size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  className="text-input"
+                  placeholder="Ex: Amazon Sports Arena/Quadra 01 ou Replay de Gols"
+                  value={r2FolderPath}
+                  onChange={(e) => setR2FolderPath(e.target.value)}
+                  style={{ paddingLeft: '38px', fontSize: '0.88rem' }}
+                />
               </div>
-              O sistema se conecta à URL do R2, lê os arquivos de vídeos gravados (ex: <code>gol_20260713_205352.mp4</code>) e preenche automaticamente o <strong>Complexo</strong>, a <strong>Quadra</strong>, a <strong>Data</strong> e os <strong>Blocos de Hora</strong>!
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                💡 Se seu vídeo no R2 estiver no caminho <code>https://...r2.dev/MinhaPasta/gol_20260713_205410.mp4</code>, digite <code>MinhaPasta</code> no campo acima.
+              </p>
             </div>
 
             {errorMsg && (
@@ -277,7 +238,7 @@ export default function DriveConnectModal({
 
               <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '12px 24px', fontSize: '0.9rem' }}>
                 {loading ? <Loader2 size={18} className="spin" /> : <Cloud size={18} />}
-                {loading ? 'Detectando Vídeos no R2...' : 'Sincronizar Cloudflare R2'}
+                {loading ? 'Atualizando R2...' : 'Sincronizar Caminho R2'}
               </button>
             </div>
 
@@ -288,7 +249,7 @@ export default function DriveConnectModal({
         {activeTab === 'local' && (
           <div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
-              Selecione os vídeos no seu computador. O sistema extrai o Complexo, Quadra, Data e Hora automaticamente a partir da nomenclatura.
+              Selecione os vídeos no seu computador para carregar sem precisar de nuvem.
             </p>
 
             <label style={{
@@ -308,9 +269,6 @@ export default function DriveConnectModal({
               <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)' }}>
                 Clique para selecionar vídeos do seu PC
               </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Suporta múltiplos arquivos (.mp4, .mov, .webm)
-              </span>
               <input
                 type="file"
                 multiple
@@ -319,42 +277,7 @@ export default function DriveConnectModal({
                 style={{ display: 'none' }}
               />
             </label>
-
-            {successMsg && (
-              <div style={{ color: 'var(--accent-green)', background: 'rgba(0, 255, 135, 0.1)', border: '1px solid rgba(0, 255, 135, 0.25)', padding: '12px 16px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
-                <Check size={18} /> {successMsg}
-              </div>
-            )}
           </div>
-        )}
-
-        {/* TAB 3: GOOGLE DRIVE */}
-        {activeTab === 'drive' && (
-          <form onSubmit={handleDriveSync}>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-green)', display: 'block', marginBottom: '6px' }}>
-                Link da Pasta do Google Drive:
-              </label>
-              <input
-                type="text"
-                className="text-input"
-                placeholder="https://drive.google.com/drive/folders/1ABC..."
-                value={inputDriveUrl}
-                onChange={(e) => setInputDriveUrl(e.target.value)}
-                required
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button type="button" onClick={onClose} className="btn-secondary">
-                Cancelar
-              </button>
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? <Loader2 size={16} className="spin" /> : <HardDrive size={16} />}
-                Sincronizar Drive
-              </button>
-            </div>
-          </form>
         )}
 
       </div>

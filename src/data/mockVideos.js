@@ -1,12 +1,13 @@
 /**
- * Lista base de arquivos do Cloudflare R2 da pasta do usuário:
- * Estrutura: Amazon Sports Arena -> Quadra 01 / Quadra 02 -> gol_YYYYMMDD_HHMMSS.mp4
+ * Lista de replays do Cloudflare R2 com suporte a subpastas:
+ * Exemplo de URL montada: https://pub-xxx.r2.dev/Amazon Sports Arena/Quadra 01/gol_20260713_205410.mp4
  */
 
-export function buildR2Catalog(r2Domain = '') {
+export function buildR2Catalog(r2Domain = '', folderPath = '') {
   const cleanDomain = r2Domain ? r2Domain.trim().replace(/\/$/, '') : 'https://pub-123456789.r2.dev';
+  const cleanPrefix = folderPath ? folderPath.trim().replace(/^\//, '').replace(/\/$/, '') + '/' : '';
 
-  return [
+  const items = [
     {
       id: 'r2_gol_20260713_205352',
       title: 'Replay de Gol - 13/07/2026 às 20:53:52',
@@ -18,8 +19,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '20h',
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_205352.mp4`,
-      filename: 'gol_20260713_205352.mp4',
+      filename: `${cleanPrefix}gol_20260713_205352.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '20h'],
       favorito: true,
@@ -36,8 +36,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '20h',
       duracao: '00:14',
       thumbnail: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_205410.mp4`,
-      filename: 'gol_20260713_205410.mp4',
+      filename: `${cleanPrefix}gol_20260713_205410.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '20h'],
       favorito: false,
@@ -54,8 +53,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '21h',
       duracao: '00:16',
       thumbnail: 'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_211312.mp4`,
-      filename: 'gol_20260713_211312.mp4',
+      filename: `${cleanPrefix}gol_20260713_211312.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '21h'],
       favorito: true,
@@ -72,8 +70,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '21h',
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_211355.mp4`,
-      filename: 'gol_20260713_211355.mp4',
+      filename: `${cleanPrefix}gol_20260713_211355.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '21h'],
       favorito: false,
@@ -90,8 +87,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '21h',
       duracao: '00:14',
       thumbnail: 'https://images.unsplash.com/photo-1560272564-c83b66b1ad12?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_211845.mp4`,
-      filename: 'gol_20260713_211845.mp4',
+      filename: `${cleanPrefix}gol_20260713_211845.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '21h'],
       favorito: true,
@@ -108,8 +104,7 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '21h',
       duracao: '00:15',
       thumbnail: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_212430.mp4`,
-      filename: 'gol_20260713_212430.mp4',
+      filename: `${cleanPrefix}gol_20260713_212430.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 01', '21h'],
       favorito: true,
@@ -126,14 +121,18 @@ export function buildR2Catalog(r2Domain = '') {
       horaBloco: '5h',
       duracao: '00:13',
       thumbnail: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80',
-      videoUrl: `${cleanDomain}/gol_20260713_055900.mp4`,
-      filename: 'gol_20260713_055900.mp4',
+      filename: `${cleanPrefix}gol_20260713_055900.mp4`,
       tipoGol: 'Stream Cloudflare R2',
       tags: ['Amazon Sports Arena', 'Quadra 02', '5h'],
       favorito: true,
       visualizacoes: 75
     }
   ];
+
+  return items.map(item => ({
+    ...item,
+    videoUrl: encodeURI(`${cleanDomain}/${item.filename}`)
+  }));
 }
 
 export const MOCK_VIDEOS = buildR2Catalog();
