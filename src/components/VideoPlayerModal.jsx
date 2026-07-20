@@ -1,16 +1,19 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, Play, Pause, Download, Share2, Volume2, VolumeX, Maximize, 
-  ChevronLeft, ChevronRight, Gauge, Check, Keyboard, Loader2 
+  ChevronLeft, ChevronRight, Gauge, Check, Keyboard, Loader2, AlertTriangle, RefreshCw 
 } from 'lucide-react';
 import { getMediaDownloadUrl } from '../utils/driveHelper';
 
 const PLAYBACK_SPEEDS = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0];
 const FRAME_DURATION = 1 / 30; // ~0.0333s por frame (30fps)
 
+// Vídeo de amostra MP4 100% público e funcional para fallback de teste
+const SAMPLE_MP4 = 'https://vjs.zencdn.net/v/oceans.mp4';
+
 export default function VideoPlayerModal({ video, onClose }) {
   const videoRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
@@ -19,10 +22,43 @@ export default function VideoPlayerModal({ video, onClose }) {
   const [copied, setCopied] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [videoError, setVideoError] = useState(false);
+  const [currentVideoSrc, setCurrentVideoSrc] = useState(video.videoUrl);
 
   const formattedDate = new Date(video.data + 'T00:00:00').toLocaleDateString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
+
+  // Tenta reprodução automática ao abrir
+  useEffect(() => {
+    setIsLoading(true);
+    setVideoError(false);
+    setCurrentVideoSrc(video.videoUrl);
+
+    // Safety timeout: Desativa o spinner após 3 segundos no máximo
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
+
+    return () => clearTimeout(safetyTimer);
+  }, [video]);
+
+  // Tenta dar Play com segurança
+  const tryPlayVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.play()
+        .then(() => {
+          setIsPlaying(true);
+          setIsLoading(false);
+          setVideoError(false);
+        })
+        .catch(() => {
+          // Bloqueio de autoplay pelo navegador: requer clique do usuário
+          setIsPlaying(false);
+          setIsLoading(false);
+        });
+    }
+  };
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -34,17 +70,24 @@ export default function VideoPlayerModal({ video, onClose }) {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
       setIsLoading(false);
+      tryPlayVideo();
     }
+  };
+
+  const handleVideoError = () => {
+    console.warn('Não foi possível carregar a URL de vídeo:', currentVideoSrc);
+    setIsLoading(false);
+    setVideoError(true);
   };
 
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
+        setIsPlaying(false);
       } else {
-        videoRef.current.play();
+        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -115,7 +158,7 @@ export default function VideoPlayerModal({ video, onClose }) {
 
   const handleDownload = (e) => {
     e.stopPropagation();
-    const downloadUrl = getMediaDownloadUrl(video.videoUrl);
+    const downloadUrl = getMediaDownloadUrl(currentVideoSrc);
     window.open(downloadUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -133,6 +176,13 @@ export default function VideoPlayerModal({ video, onClose }) {
     navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  // Alternar para amostra MP4 pública se o link do R2 não responder
+  const handleUseSampleFallback = () => {
+    setCurrentVideoSrc(SAMPLE_MP4);
+    setVideoError(false);
+    setIsLoading(true);
   };
 
   useEffect(() => {
@@ -213,19 +263,51 @@ export default function VideoPlayerModal({ video, onClose }) {
             {/* VÍDEO HTML5 R2 STREAM DIRETO */}
             <video
               ref={videoRef}
-              src={video.videoUrl}
-              autoPlay
+              src={currentVideoSrc}
               playsInline
               onCanPlay={() => setIsLoading(false)}
-              onPlaying={() => setIsLoading(false)}
+              onPlaying={() => { setIsLoading(false); setIsPlaying(true); }}
+              onPause={() => setIsPlaying(false)}
+              onError={handleVideoError}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
               onClick={togglePlay}
             />
 
+            {/* AVISO DE ERRO DE CONEXÃO DO VÍDEO NO R2 */}
+            {videoError && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(7, 9, 14, 0.92)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '24px',
+                textAlign: 'center',
+                gap: '12px',
+                zIndex: 20
+              }}>
+                <AlertTriangle size={48} color="var(--accent-red)" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Não foi possível conectar a este arquivo no R2
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '500px', lineHeight: 1.4 }}>
+                  Verifique se a URL do seu bucket Cloudflare R2 está correta e se o arquivo <code>{video.filename || 'gol.mp4'}</code> foi enviado para o bucket.
+                </p>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <button onClick={handleUseSampleFallback} className="btn-primary" style={{ fontSize: '0.85rem' }}>
+                    <RefreshCw size={16} /> Testar com Mídia de Amostra
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Spinner de Carregamento */}
-            {isLoading && (
+            {isLoading && !videoError && (
               <div style={{
                 position: 'absolute',
                 inset: 0,
@@ -236,12 +318,39 @@ export default function VideoPlayerModal({ video, onClose }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '14px',
-                zIndex: 15
+                zIndex: 15,
+                pointerEvents: 'none'
               }}>
                 <Loader2 size={46} color="var(--accent-green)" className="spin" style={{ animation: 'spin 1s linear infinite' }} />
                 <div style={{ color: 'var(--accent-green)', fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.5px' }}>
-                  ⚡ Carregando Replay Cloudflare R2...
+                  ⚡ Conectando ao Cloudflare R2...
                 </div>
+              </div>
+            )}
+
+            {/* Overlay Play Button quando Pausado */}
+            {!isPlaying && !isLoading && !videoError && (
+              <div 
+                onClick={togglePlay}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '68px',
+                  height: '68px',
+                  borderRadius: '50%',
+                  background: 'rgba(0, 255, 135, 0.9)',
+                  boxShadow: '0 0 30px rgba(0, 255, 135, 0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#07090e',
+                  cursor: 'pointer',
+                  zIndex: 12
+                }}
+              >
+                <Play size={32} style={{ marginLeft: '4px' }} fill="#07090e" />
               </div>
             )}
 
