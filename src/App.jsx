@@ -5,30 +5,29 @@ import VideoGrid from './components/VideoGrid';
 import VideoPlayerModal from './components/VideoPlayerModal';
 import DriveConnectModal from './components/DriveConnectModal';
 import { buildR2Catalog } from './data/mockVideos';
-import { getSavedR2Domain, fetchR2BucketFiles } from './utils/driveHelper';
+import { getSavedR2Domain, getSavedR2FolderPath, fetchR2BucketFiles } from './utils/driveHelper';
 
 export default function App() {
-  // Domínio do Cloudflare R2 Conectado
   const [connectedR2Domain, setConnectedR2Domain] = useState(getSavedR2Domain());
+  const [connectedR2FolderPath, setConnectedR2FolderPath] = useState(getSavedR2FolderPath());
 
   // Catálogo de vídeos 100% Cloudflare R2
   const [videos, setVideos] = useState(() => {
     try {
       localStorage.removeItem('replay_gols_catalog');
-      const savedDomain = getSavedR2Domain();
-      if (savedDomain) {
-        return buildR2Catalog(savedDomain);
-      }
+      const domain = getSavedR2Domain();
+      const folder = getSavedR2FolderPath() || 'Amazon Sports Arena/Quadra 01';
+      return buildR2Catalog(domain, folder);
     } catch (e) {}
-    return buildR2Catalog(getSavedR2Domain());
+    return buildR2Catalog();
   });
 
-  // Atualiza as URLs do catálogo quando o domínio R2 for modificado
+  // Atualiza as URLs do catálogo quando o domínio ou subpasta R2 forem modificados
   useEffect(() => {
-    if (connectedR2Domain) {
-      setVideos(buildR2Catalog(connectedR2Domain));
-    }
-  }, [connectedR2Domain]);
+    const domain = connectedR2Domain || getSavedR2Domain();
+    const folder = connectedR2FolderPath !== undefined ? connectedR2FolderPath : (getSavedR2FolderPath() || 'Amazon Sports Arena/Quadra 01');
+    setVideos(buildR2Catalog(domain, folder));
+  }, [connectedR2Domain, connectedR2FolderPath]);
 
   // Estados dos Filtros
   const [selectedComplexo, setSelectedComplexo] = useState('Todos');
@@ -83,19 +82,15 @@ export default function App() {
   // Lógica de Filtragem dos Vídeos no Cloudflare R2
   const filteredVideos = useMemo(() => {
     return videos.filter(video => {
-      // 1. Filtro de Complexo
       if (selectedComplexo !== 'Todos' && video.complexo !== selectedComplexo) {
         return false;
       }
-      // 2. Filtro de Quadra
       if (selectedQuadra !== 'Todas' && video.quadra !== selectedQuadra) {
         return false;
       }
-      // 3. Filtro de Data
       if (selectedData !== 'Todas' && video.data !== selectedData) {
         return false;
       }
-      // 4. Filtro de Hora (21:42 -> 21h, 05:59 -> 5h)
       if (selectedHora !== 'Todas') {
         const targetHourNum = parseInt(selectedHora.replace('h', ''), 10);
         let videoHourNum = -1;
@@ -109,7 +104,6 @@ export default function App() {
           return false;
         }
       }
-      // 5. Busca por palavra-chave
       if (searchTerm.trim() !== '') {
         const query = searchTerm.toLowerCase();
         const matchTitle = video.title.toLowerCase().includes(query);
@@ -182,7 +176,7 @@ export default function App() {
               Amazon Sports Arena & Suas Quadras (R2)
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
-              Vídeos apontados diretamente para o seu bucket R2: <strong style={{ color: 'var(--accent-green)' }}>{connectedR2Domain || 'Cole seu link R2'}</strong>
+              Sincronizado em: <strong style={{ color: 'var(--accent-green)' }}>{connectedR2Domain}/Amazon Sports Arena/Quadra 01</strong>
             </p>
           </div>
 
