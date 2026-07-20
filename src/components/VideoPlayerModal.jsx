@@ -1,14 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, Play, Pause, Download, Share2, Volume2, VolumeX, Maximize, 
-  ChevronLeft, ChevronRight, Gauge, Check, Keyboard, Loader2, AlertTriangle, RefreshCw 
+  ChevronLeft, ChevronRight, Gauge, Check, Keyboard, Loader2, AlertTriangle, RefreshCw, ExternalLink, HelpCircle 
 } from 'lucide-react';
 import { getMediaDownloadUrl } from '../utils/driveHelper';
 
 const PLAYBACK_SPEEDS = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0];
 const FRAME_DURATION = 1 / 30; // ~0.0333s por frame (30fps)
 
-// Vídeo de amostra MP4 100% público e funcional para fallback de teste
+// Vídeo de amostra MP4 público para teste de fallback
 const SAMPLE_MP4 = 'https://vjs.zencdn.net/v/oceans.mp4';
 
 export default function VideoPlayerModal({ video, onClose }) {
@@ -29,13 +29,11 @@ export default function VideoPlayerModal({ video, onClose }) {
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
 
-  // Tenta reprodução automática ao abrir
   useEffect(() => {
     setIsLoading(true);
     setVideoError(false);
     setCurrentVideoSrc(video.videoUrl);
 
-    // Safety timeout: Desativa o spinner após 3 segundos no máximo
     const safetyTimer = setTimeout(() => {
       setIsLoading(false);
     }, 3000);
@@ -43,7 +41,6 @@ export default function VideoPlayerModal({ video, onClose }) {
     return () => clearTimeout(safetyTimer);
   }, [video]);
 
-  // Tenta dar Play com segurança
   const tryPlayVideo = () => {
     if (videoRef.current) {
       videoRef.current.play()
@@ -53,7 +50,6 @@ export default function VideoPlayerModal({ video, onClose }) {
           setVideoError(false);
         })
         .catch(() => {
-          // Bloqueio de autoplay pelo navegador: requer clique do usuário
           setIsPlaying(false);
           setIsLoading(false);
         });
@@ -75,7 +71,7 @@ export default function VideoPlayerModal({ video, onClose }) {
   };
 
   const handleVideoError = () => {
-    console.warn('Não foi possível carregar a URL de vídeo:', currentVideoSrc);
+    console.warn('Falha ao conectar no arquivo R2:', currentVideoSrc);
     setIsLoading(false);
     setVideoError(true);
   };
@@ -162,6 +158,11 @@ export default function VideoPlayerModal({ video, onClose }) {
     window.open(downloadUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleOpenDirectLink = (e) => {
+    e.stopPropagation();
+    window.open(currentVideoSrc, '_blank', 'noopener,noreferrer');
+  };
+
   const handleShare = async () => {
     const shareText = `⚽ Replay de Gol no ${video.complexo} (${video.quadra}) - ${formattedDate} às ${video.hora}!`;
     const shareUrl = window.location.href;
@@ -178,7 +179,6 @@ export default function VideoPlayerModal({ video, onClose }) {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Alternar para amostra MP4 pública se o link do R2 não responder
   const handleUseSampleFallback = () => {
     setCurrentVideoSrc(SAMPLE_MP4);
     setVideoError(false);
@@ -275,13 +275,13 @@ export default function VideoPlayerModal({ video, onClose }) {
               onClick={togglePlay}
             />
 
-            {/* AVISO DE ERRO DE CONEXÃO DO VÍDEO NO R2 */}
+            {/* PAINEL DIAGNÓSTICO DE ERRO DE CONEXÃO R2 / CORS */}
             {videoError && (
               <div style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'rgba(7, 9, 14, 0.92)',
-                backdropFilter: 'blur(8px)',
+                background: 'rgba(7, 9, 14, 0.94)',
+                backdropFilter: 'blur(10px)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -291,16 +291,30 @@ export default function VideoPlayerModal({ video, onClose }) {
                 gap: '12px',
                 zIndex: 20
               }}>
-                <AlertTriangle size={48} color="var(--accent-red)" />
+                <AlertTriangle size={44} color="var(--accent-red)" />
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Não foi possível conectar a este arquivo no R2
+                  Não foi possível conectar ao vídeo no Cloudflare R2
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '500px', lineHeight: 1.4 }}>
-                  Verifique se a URL do seu bucket Cloudflare R2 está correta e se o arquivo <code>{video.filename || 'gol.mp4'}</code> foi enviado para o bucket.
+                
+                <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', maxWidth: '520px', lineHeight: 1.4 }}>
+                  Link buscado: <code style={{ color: 'var(--accent-cyan)', wordBreak: 'break-all' }}>{currentVideoSrc}</code>
                 </p>
-                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+
+                <div style={{ background: 'rgba(255, 183, 3, 0.08)', border: '1px solid rgba(255, 183, 3, 0.25)', padding: '12px 16px', borderRadius: '10px', maxWidth: '540px', fontSize: '0.8rem', color: '#ffb703', textAling: 'left' }}>
+                  <strong>🛠️ Verificação de 2 Passos:</strong>
+                  <ul style={{ paddingLeft: '16px', marginTop: '6px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Clique abaixo em <strong>"Abrir Link em Nova Aba"</strong>. Se o vídeo tocar na nova aba, falta ativar a regra de <strong>CORS Policy</strong> no painel do Cloudflare R2.</li>
+                    <li>Se der <code>404 Not Found</code> na nova aba, o arquivo precisa ser enviado para a pasta do bucket R2.</li>
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                  <button onClick={handleOpenDirectLink} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+                    <ExternalLink size={15} /> Abrir Link em Nova Aba
+                  </button>
+
                   <button onClick={handleUseSampleFallback} className="btn-primary" style={{ fontSize: '0.85rem' }}>
-                    <RefreshCw size={16} /> Testar com Mídia de Amostra
+                    <RefreshCw size={15} /> Testar Player com Mídia de Amostra
                   </button>
                 </div>
               </div>
@@ -328,7 +342,7 @@ export default function VideoPlayerModal({ video, onClose }) {
               </div>
             )}
 
-            {/* Overlay Play Button quando Pausado */}
+            {/* Overlay Play Button */}
             {!isPlaying && !isLoading && !videoError && (
               <div 
                 onClick={togglePlay}
