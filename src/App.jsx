@@ -11,12 +11,12 @@ export default function App() {
   const [connectedR2Domain, setConnectedR2Domain] = useState(getSavedR2Domain());
   const [connectedR2FolderPath, setConnectedR2FolderPath] = useState(getSavedR2FolderPath());
 
-  // Catálogo de vídeos 100% Cloudflare R2
+  // Catálogo de vídeos 100% Cloudflare R2 do Usuário
   const [videos, setVideos] = useState(() => {
     try {
       localStorage.removeItem('replay_gols_catalog');
       const domain = getSavedR2Domain();
-      const folder = getSavedR2FolderPath() || 'Amazon Sports Arena/Quadra 01';
+      const folder = getSavedR2FolderPath();
       return buildR2Catalog(domain, folder);
     } catch (e) {}
     return buildR2Catalog();
@@ -25,7 +25,7 @@ export default function App() {
   // Atualiza as URLs do catálogo quando o domínio ou subpasta R2 forem modificados
   useEffect(() => {
     const domain = connectedR2Domain || getSavedR2Domain();
-    const folder = connectedR2FolderPath !== undefined ? connectedR2FolderPath : (getSavedR2FolderPath() || 'Amazon Sports Arena/Quadra 01');
+    const folder = connectedR2FolderPath !== undefined ? connectedR2FolderPath : getSavedR2FolderPath();
     setVideos(buildR2Catalog(domain, folder));
   }, [connectedR2Domain, connectedR2FolderPath]);
 
@@ -110,8 +110,9 @@ export default function App() {
         const matchComplexo = video.complexo.toLowerCase().includes(query);
         const matchQuadra = video.quadra.toLowerCase().includes(query);
         const matchHora = video.hora && video.hora.toLowerCase().includes(query);
+        const matchCamera = video.camera && video.camera.toLowerCase().includes(query);
         const matchTags = video.tags && video.tags.some(t => t.toLowerCase().includes(query));
-        if (!matchTitle && !matchComplexo && !matchQuadra && !matchHora && !matchTags) {
+        if (!matchTitle && !matchComplexo && !matchQuadra && !matchHora && !matchCamera && !matchTags) {
           return false;
         }
       }
@@ -170,13 +171,13 @@ export default function App() {
         >
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-green)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              ⚡ Cloudflare R2 — Streaming de Alta Performance HD
+              ⚡ Cloudflare R2 — Streaming de Alta Performance HD ({videos.length} replays catalogados)
             </span>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '4px' }}>
-              Amazon Sports Arena & Suas Quadras (R2)
+              Amazon Sports Arena (Câmeras Ugreen & Anker)
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
-              Sincronizado em: <strong style={{ color: 'var(--accent-green)' }}>{connectedR2Domain}/Amazon Sports Arena/Quadra 01</strong>
+              Servidor R2: <strong style={{ color: 'var(--accent-green)' }}>{connectedR2Domain}</strong>
             </p>
           </div>
 
